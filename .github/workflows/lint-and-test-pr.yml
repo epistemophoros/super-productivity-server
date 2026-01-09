@@ -1,6 +1,9 @@
-name: 'Lint & Test PRs'
+name: 'Lint & Test'
 
-on: [pull_request]
+on:
+  pull_request:
+  push:
+    branches: [main, master, develop]
 
 permissions:
   pull-requests: write
@@ -14,7 +17,7 @@ jobs:
     steps:
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22.18.0
       - name: Check out Git repository
         uses: actions/checkout@v6
         with:
@@ -50,6 +53,48 @@ jobs:
       - run: npm run lint
       - run: npm run int:test # Validate i18n JSON files
       - run: npm run test
+      
+      - name: Build cross-device-sync-server
+        working-directory: packages/cross-device-sync-server
+        run: npm run build
+      
+      - name: Test cross-device-sync-server
+        working-directory: packages/cross-device-sync-server
+        run: npm test
+      
+      - name: Test cross-device-sync-server Docker build
+        working-directory: packages/cross-device-sync-server
+        run: docker build -t cross-device-sync-server-test .
+      
+      - name: Test cross-device-sync-server Docker container
+        working-directory: packages/cross-device-sync-server
+        run: |
+          docker run -d \
+            --name sync-server-test \
+            -e USERNAME=testuser \
+            -e PASSWORD=testpass123 \
+            -e PORT=2347 \
+            -p 2347:2347 \
+            cross-device-sync-server-test
+          
+          # Wait for server to be ready
+          timeout=30
+          elapsed=0
+          while ! curl -f http://localhost:2347/health && [ $elapsed -lt $timeout ]; do
+            sleep 1
+            elapsed=$((elapsed + 1))
+          done
+          
+          # Test health endpoint
+          curl -f http://localhost:2347/health || exit 1
+          
+          # Test authentication (should fail without credentials)
+          curl -X PROPFIND http://localhost:2347/ -w "%{http_code}" | grep -q "401" || exit 1
+          
+          # Cleanup
+          docker stop sync-server-test
+          docker rm sync-server-test
+      
       - name: Start WebDAV Server
         run: |
           docker compose up -d webdav
