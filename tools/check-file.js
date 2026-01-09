@@ -10,30 +10,61 @@ if (!file) {
 
 // Get absolute path
 const absolutePath = path.resolve(file);
+const ext = path.extname(file).toLowerCase();
+const baseName = path.basename(file);
+
+const PRETTIER_SUPPORTED_EXTS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '.md',
+  '.scss',
+  '.css',
+  '.html',
+  '.yml',
+  '.yaml',
+]);
+const PRETTIER_SUPPORTED_BASENAMES = new Set([]);
+
+const shouldRunPrettier =
+  PRETTIER_SUPPORTED_EXTS.has(ext) || PRETTIER_SUPPORTED_BASENAMES.has(baseName);
 
 try {
-  // Run prettier
-  console.log(`🎨 Formatting ${path.basename(file)}...`);
-  execFileSync('npm', ['run', 'prettier:file', '--', absolutePath], {
-    stdio: 'pipe',
-    encoding: 'utf8',
-  });
+  if (shouldRunPrettier) {
+    // Run prettier
+    console.log(`🎨 Formatting ${path.basename(file)}...`);
+    execFileSync('npm', ['run', 'prettier:file', '--', absolutePath], {
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+  } else {
+    console.log(
+      `ℹ️  Skipping format for ${path.basename(file)} (unsupported by prettier)`,
+    );
+  }
 
   // Run lint based on file type
   console.log(`🔍 Linting ${path.basename(file)}...`);
 
-  if (file.endsWith('.scss')) {
+  if (ext === '.scss') {
     // Use stylelint for SCSS files
     execFileSync('npx', ['stylelint', absolutePath], {
       stdio: 'pipe',
       encoding: 'utf8',
     });
-  } else {
-    // Use ng lint for TypeScript/JavaScript files
+  } else if (ext === '.ts' || ext === '.tsx' || ext === '.html') {
+    // Use ng lint for files Angular knows how to lint.
     execFileSync('npm', ['run', 'lint:file', '--', absolutePath], {
       stdio: 'pipe',
       encoding: 'utf8',
     });
+  } else {
+    // For files Angular can't lint (e.g. JSON, MD, YAML, Dockerfile), formatting is enough.
+    console.log(`ℹ️  Skipping lint for ${path.basename(file)} (unsupported by ng lint)`);
   }
 
   // If we get here, both commands succeeded

@@ -1,0 +1,33 @@
+services:
+  cross-device-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${PORT:-2345}:${PORT:-2345}'
+    environment:
+      - HOST=0.0.0.0
+      - PORT=${PORT:-2345}
+      - DATA_DIR=/data
+      - USERNAME=${USERNAME:-admin}
+      - PASSWORD=${PASSWORD:-change-me}
+      - REALM=${REALM:-Super Productivity Sync}
+    volumes:
+      - cross_device_sync_data:/data
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--quiet',
+          '--tries=1',
+          '--spider',
+          'http://localhost:${PORT:-2345}/health',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  cross_device_sync_data:
